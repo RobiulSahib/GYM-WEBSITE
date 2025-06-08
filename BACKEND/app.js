@@ -2,15 +2,33 @@ import express from "express";
 import { config } from "dotenv";
 import cors from "cors";
 import { sendEmail } from "./utils/sendEmail.js";
+import nodeMailer from "nodemailer";
 
 const app = express();
 const router = express.Router();
 
 config({ path: "./config.env" });
 
+const allowedOrigins = [process.env.FRONTEND_URL];
 app.use(
   cors({
-    origin: [process.env.FRONTEND_URL],
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like Postman or curl)
+      if (!origin) return callback(null, true);
+
+      // Allow if origin matches production URL
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        return callback(null, true);
+      }
+
+      // Allow if origin is localhost with any port (http://localhost:xxxx)
+      if (/^http:\/\/localhost:\d+$/.test(origin)) {
+        return callback(null, true);
+      }
+
+      // Otherwise block
+      callback(new Error("Not allowed by CORS"));
+    },
     methods: ["POST"],
     credentials: true,
   })
@@ -41,11 +59,12 @@ router.post("/send/mail", async (req, res, next) => {
       message: "Message Sent Successfully.",
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: " Internal Server Error",
-    });
-  }
+  console.error("Error sending email:", error);  // Log the real error on the backend console
+  res.status(500).json({
+    success: false,
+    message: error.message || "Internal Server Error",  // Send the real error message in response (for debugging)
+  });
+}
 });
 
 app.use(router);
